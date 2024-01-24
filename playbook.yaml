@@ -1,0 +1,176 @@
+- hosts: localhost
+  become: true
+  remote_user: root
+  tasks:
+    - name: Run apt-get update packages
+      apt:
+        update_cache: yes
+    
+    - name: Download nginx
+      apt:
+        pkg: nginx
+
+    - name: Create prometheus user
+      user:
+            name: prometheus
+            state: present
+            shell: /bin/false
+            system: no
+            createhome: no
+      become_user: root
+
+    - name: Create directory
+      file:
+          path: "{{ item }}"
+          state: directory
+          owner: prometheus
+          group: prometheus
+      with_items:
+        - /etc/prometheus
+        - /var/lib/prometheus
+    - name: Unarchive a file that needs to be downloaded
+      unarchive:
+        src: https://github.com/prometheus/prometheus/releases/download/v2.49.1/prometheus-2.49.1.linux-amd64.tar.gz
+        dest: /home/zm
+        remote_src: True
+    - name: Copy file
+      copy:
+        src: /home/zm/prometheus-2.49.1.linux-amd64/prometheus
+        dest: /usr/local/bin
+    - name: Copy file
+      copy:
+        src: /home/zm/prometheus-2.49.1.linux-amd64/promtool
+        dest: /usr/local/bin
+    - name: Change file permission
+      file:
+        path: /usr/local/bin/prometheus
+        owner: prometheus
+        group: prometheus
+        mode: '755'
+    - name: Change file permission
+      file:
+        path: /usr/local/bin/promtool
+        owner: prometheus
+        group: prometheus
+        mode: '755'
+    - name: Copy file
+      copy:
+        src: /home/zm/prometheus-2.49.1.linux-amd64/consoles
+        dest: /etc/prometheus
+    - name: Copy file
+      copy:
+        src: /home/zm/prometheus-2.49.1.linux-amd64/console_libraries
+        dest: /etc/prometheus
+    - name: Change file permission
+      file:
+        path: /etc/prometheus/consoles
+        owner: prometheus
+        group: prometheus
+    - name: Change file permission
+      file:
+        path: /etc/prometheus/console_libraries
+        owner: prometheus
+        group: prometheus
+    - name: Delete unwanted files
+      file:
+        state: absent
+        path: /home/zm/prometheus-2.49.1.linux-amd64
+    - name: Delete unwanted files
+      file:
+        state: absent
+        path: /home/zm/prometheus-2.49.1.linux-amd64.tar.gz
+    - name: Copy file
+      copy:
+        src: /home/zm/grafprom/prometheus.yml
+        dest: /etc/prometheus/prometheus.yml
+    - name: Change file permission
+      file:
+        path: /etc/prometheus/prometheus.yml
+        owner: prometheus
+        group: prometheus
+    - name: Copy file
+      copy:
+        src: /home/zm/grafprom/prometheus.service
+        dest: /etc/systemd/system/prometheus.service  
+    - name: Start prometheus
+      systemd:
+        state: started
+        name: prometheus
+        enabled: yes
+        daemon_reload: yes
+
+    - name: Create node_exporter user
+      user:
+            name: node_exporter
+            state: present
+            shell: /bin/false
+            system: no
+            createhome: no
+      become_user: root
+    - name: Unarchive a file that needs to be downloaded
+      unarchive:
+        src: https://github.com/prometheus/node_exporter/releases/download/v1.7.0/node_exporter-1.7.0.linux-amd64.tar.gz
+        dest: /home/zm
+        remote_src: yes
+    - name: Copy file
+      copy:
+        src: /home/zm/node_exporter-1.7.0.linux-amd64/node_exporter
+        dest: /usr/local/bin
+    - name: Change file permission
+      file:
+        path: /usr/local/bin/node_exporter
+        owner: node_exporter
+        group: node_exporter
+        mode: '755'    
+    - name: Delete unwanted files
+      file:
+        state: absent
+        path: /home/zm/node_exporter-1.7.0.linux-amd64.tar.gz
+    - name: Delete unwanted files
+      file:
+        state: absent
+        path: /home/zm/node_exporter-1.7.0.linux-amd64
+    - name: Copy file
+      copy:
+        src: /home/zm/grafprom/node_exporter.service
+        dest: /etc/systemd/system/node_exporter.service
+    - name: Start node_exporter
+      systemd:
+        state: started
+        name: node_exporter
+        enabled: yes
+        daemon_reload: yes
+    - name: Copy file
+      copy:
+        src: /home/zm/grafprom/prometheus2.yml
+        dest: /etc/prometheus/prometheus.yml
+    - name: Restart prometheus
+      systemd:
+        name: prometheus
+        state: restarted
+    - name: Download adduser libfontconfig
+      apt: 
+        pkg:
+        - adduser
+        - libfontconfig
+    - name: Download grafana 
+      apt:
+        deb: https://dl.grafana.com/oss/release/grafana_10.3.1_amd64.deb
+    - name: Start grafana
+      systemd:
+        state: started
+        name: grafana-server
+        daemon_reload: yes
+        enabled: yes
+
+    - name: Firewall ports open 9091
+      ufw:
+        rule: allow
+        port: '{{ item }}'
+        proto: tcp
+      with_items:
+        - 9091 
+        - 9090
+        - 80
+        - 443
+      
